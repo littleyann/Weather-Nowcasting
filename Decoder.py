@@ -6,36 +6,43 @@ from einops.layers.torch import Rearrange
 
 
 class Decoder(nn.Module):
-    def __init__(self, dim, hidden_dim):
+    def __init__(self, h_state_dims, x_dims):
         super(Decoder, self).__init__()
 
-        self.gru1 = ConvGRU(input_dim=dim[0], hidden_dim=hidden_dim[0], kernel_size=(3, 3))
-        self.gru2 = ConvGRU(input_dim=dim[1], hidden_dim=hidden_dim[1], kernel_size=(3, 3))
-        self.gru3 = ConvGRU(input_dim=dim[2], hidden_dim=hidden_dim[2], kernel_size=(3, 3))
-        self.gru4 = ConvGRU(input_dim=dim[3], hidden_dim=hidden_dim[3], kernel_size=(3, 3))
+        self.gru1 = ConvGRU(h_state_dim=h_state_dims[0], x_dim=x_dims[0], kernel_size=(3, 3))
+        self.gru2 = ConvGRU(h_state_dim=h_state_dims[1], x_dim=x_dims[1], kernel_size=(3, 3))
+        self.gru3 = ConvGRU(h_state_dim=h_state_dims[2], x_dim=x_dims[2], kernel_size=(3, 3))
+        self.gru4 = ConvGRU(h_state_dim=h_state_dims[3], x_dim=x_dims[3], kernel_size=(3, 3))
 
         self.g_block1 = nn.Sequential(
-            nn.Conv2d(hidden_dim[0], dim[0], kernel_size=(1, 1), padding=(0, 0)),
-            GBlock(dim[0], dim[0], False),
-            GBlock(dim[0], dim[1], True),
+            nn.Conv2d(h_state_dims[0], x_dims[0], kernel_size=(1, 1), padding=(0, 0)),
+            GBlock(x_dims[0], x_dims[0], False),
+            GBlock(x_dims[0], x_dims[1], True),
         )
 
         self.g_block2 = nn.Sequential(
-            nn.Conv2d(hidden_dim[1], dim[1], kernel_size=(1, 1), padding=(0, 0)),
-            GBlock(dim[1], dim[1], False),
-            GBlock(dim[1], dim[2], True),
+            nn.Conv2d(h_state_dims[1], x_dims[1], kernel_size=(1, 1), padding=(0, 0)),
+            GBlock(x_dims[1], x_dims[1], False),
+            GBlock(x_dims[1], x_dims[2], True),
         )
 
         self.g_block3 = nn.Sequential(
-            nn.Conv2d(hidden_dim[2], dim[2], kernel_size=(1, 1), padding=(0, 0)),
-            GBlock(dim[2], dim[2], False),
-            GBlock(dim[2], dim[3], True),
+            nn.Conv2d(h_state_dims[2], x_dims[2], kernel_size=(1, 1), padding=(0, 0)),
+            GBlock(x_dims[2], x_dims[2], False),
+            GBlock(x_dims[2], x_dims[3], True),
         )
 
         self.g_block4 = nn.Sequential(
-            nn.Conv2d(hidden_dim[3], dim[3], kernel_size=(1, 1), padding=(0, 0)),
-            GBlock(dim[3], dim[3], False),
-            GBlock(dim[3], dim[3], True),
+            nn.Conv2d(h_state_dims[3], x_dims[3], kernel_size=(1, 1), padding=(0, 0)),
+            GBlock(x_dims[3], x_dims[3], False),
+            GBlock(x_dims[3], x_dims[3], True),
+        )
+
+        self.out = nn.Sequential(
+            nn.BatchNorm2d(x_dims[3]),
+            nn.ReLU(),
+            nn.Conv2d(x_dims[3], 4, kernel_size=(1, 1)),
+            nn.modules.PixelShuffle(upscale_factor=2),
         )
 
     def forward(self, x, hidden_stats):
@@ -53,9 +60,11 @@ class Decoder(nn.Module):
 
         gru4_outs = self.gru4(gru3_out, hidden_stats[0])
         gru4_outs = [self.g_block4(gru4_out) for gru4_out in gru4_outs]
-        gru4_out = torch.stack(gru4_outs, dim=1)
 
-        return gru4_out
+        outs = [self.out(gru4_out) for gru4_out in gru4_outs]
+        out = torch.stack(outs, dim=1)
+
+        return out
 
 
 if __name__ == '__main__':
@@ -64,8 +73,8 @@ if __name__ == '__main__':
                       torch.randn((2, 256, 15, 18))]
 
     model = Decoder(
-        dim=[512, 256, 128, 64],
-        hidden_dim=[256, 128, 64, 32]
+        h_state_dims=[256, 128, 64, 32],
+        x_dims=[512, 256, 128, 64]
     )
 
     output_tensor = model(input_tensor, hidden_tensors)

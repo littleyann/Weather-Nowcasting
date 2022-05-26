@@ -67,8 +67,22 @@ class DBlock(nn.Module):
     
     
 class LBlock(nn.Module):
-    def __init__(self):
+    def __init__(self, in_chan, out_chan):
         super(LBlock, self).__init__()
+
+        self.path1 = nn.Sequential(
+            nn.ReLU(),
+            nn.Conv2d(in_chan, in_chan, kernel_size=(3, 3), padding=(1, 1)),
+            nn.ReLU(),
+            nn.Conv2d(in_chan, out_chan, kernel_size=(3, 3), padding=(1, 1)),
+        )
+        self.path2 = nn.Conv2d(in_chan, out_chan-in_chan, kernel_size=(1, 1))
+
+    def forward(self, x):
+        out1 = self.path1(x)
+        out2 = self.path2(x)
+        out2 = torch.cat([x, out2], dim=1)
+        return out1 + out2
 
 
 
