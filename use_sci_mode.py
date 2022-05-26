@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 
 input_tensor = torch.randn((2, 16, 480, 560))
@@ -7,4 +8,4 @@ output_tensor = conv_3D(input_tensor)
 print(output_tensor.shape)
 print(len(input_tensor))
 
-
+x = np.linspace(1, 10)

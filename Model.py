@@ -27,6 +27,9 @@ class Model(nn.Module):
         self.decoder = Decoder(h_state_dims, x_dims)
 
     def forward(self, x):
+        b, t, c, h, w = x.shape
+        padding = torch.zeros((b, t, c, h, 8)).type_as(x)
+        x = torch.cat([padding, x, padding], dim=4)
         hidden_states = self.encoder(x)
 
         inputs = self.generate_input(x)
@@ -35,17 +38,20 @@ class Model(nn.Module):
         inputs = einops.repeat(inputs, "b l c h w -> b (repeat l) c h w", repeat=20)
 
         outputs = self.decoder(inputs, hidden_states)
+        outputs = outputs[:, :, :, :, 8: 568]
 
         return outputs
 
 
 def test():
-    input_tensor = torch.randn((1, 20, 1, 480, 576))
+    input_tensor = torch.randn((2, 20, 1, 480, 560)).cuda()
 
     model = Model(
         in_chan=1, encoder_chan_rise=32, time_steps=20, generate_channels=[8, 16, 32, 128, 512],
         num_l_blocks=4, input_shape=(8, 15, 18), h_state_dims=[256, 128, 64, 32], x_dims=[512, 256, 128, 64]
-    )
+    ).cuda()
+    model = nn.DataParallel(model)
+
     output = model(input_tensor)
     print(output.shape)
     return output
